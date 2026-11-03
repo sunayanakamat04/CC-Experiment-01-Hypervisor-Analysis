@@ -1,0 +1,4 @@
+node_name,role,status,version,internal_ip,container_runtime,cpu_capacity,memory_capacity
+kind-control-plane,control-plane,Ready,v1.37.0,172.20.0.4,containerd://2.3.4,16,1081101176832
+kind-worker,worker,Ready,v1.37.0,172.20.0.3,containerd://2.3.4,16,1081101176832
+kind-worker2,worker,Ready,v1.37.0,172.20.0.2,containerd://2.3.4,16,1081101176832

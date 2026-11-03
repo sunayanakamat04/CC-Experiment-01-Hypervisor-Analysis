@@ -1,0 +1,25 @@
+PS C:\Users\sunay\k8s-lab> kubectl delete pod nginx-69b9cdbbdd-5zrwl
+pod "nginx-69b9cdbbdd-5zrwl" deleted
+
+PS C:\Users\sunay\k8s-lab> kubectl get pods
+NAME                     READY   STATUS        RESTARTS   AGE
+nginx-69b9cdbbdd-5zrwl   1/1     Terminating   0          5m45s
+nginx-69b9cdbbdd-g5tft   1/1     Running       0          39s
+nginx-69b9cdbbdd-qfjgv   1/1     Running       0          5m31s
+nginx-69b9cdbbdd-r7zrh   1/1     Running       0          39s
+nginx-69b9cdbbdd-rqjd5   1/1     Running       0          39s
+nginx-69b9cdbbdd-x5ssp   1/1     Running       0          5m31s
+nginx-69b9cdbbdd-z9km2   0/1     ContainerCreating 0      2s
+
+PS C:\Users\sunay\k8s-lab> kubectl get pods
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-69b9cdbbdd-g5tft   1/1     Running   0          45s
+nginx-69b9cdbbdd-qfjgv   1/1     Running   0          5m37s
+nginx-69b9cdbbdd-r7zrh   1/1     Running   0          45s
+nginx-69b9cdbbdd-rqjd5   1/1     Running   0          45s
+nginx-69b9cdbbdd-x5ssp   1/1     Running   0          5m37s
+nginx-69b9cdbbdd-z9km2   1/1     Running   0          8s
+
+PS C:\Users\sunay\k8s-lab> kubectl get deployment nginx
+NAME    READY   UP-TO-DATE   AVAILABLE   AGE
+nginx   6/6     6            6           6m2s

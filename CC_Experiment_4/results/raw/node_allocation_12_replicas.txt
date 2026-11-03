@@ -1,0 +1,13 @@
+--- Node: kind-worker ---
+Non-terminated Pods:          (8 in total: 6 demo pods + 2 system daemons)
+Allocated resources:
+  Resource           Requests    Limits
+  cpu                700m (4%)   1200m (7%)
+  memory             434Mi (5%)  768Mi (9%)
+
+--- Node: kind-worker2 ---
+Non-terminated Pods:          (8 in total: 6 demo pods + 2 system daemons)
+Allocated resources:
+  Resource           Requests    Limits
+  cpu                700m (4%)   1200m (7%)
+  memory             434Mi (5%)  768Mi (9%)

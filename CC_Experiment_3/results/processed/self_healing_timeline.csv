@@ -1,0 +1,6 @@
+time_seconds,event_description,desired_replicas,ready_replicas,terminating_replicas
+0,Steady state (6 healthy pods),6,6,0
+1,Pod nginx-69b9cdbbdd-5zrwl deleted,6,5,1
+2,ReplicaSet provisions replacement pod nginx-69b9cdbbdd-z9km2 (ContainerCreating),6,5,1
+5,Deleted pod terminates completely,6,5,0
+8,New pod transitions to Running (1/1),6,6,0

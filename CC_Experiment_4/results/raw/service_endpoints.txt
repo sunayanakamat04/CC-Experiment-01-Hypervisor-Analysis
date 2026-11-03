@@ -1,0 +1,10 @@
+NAME            TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+kubernetes      ClusterIP   10.96.0.1      <none>        443/TCP        8h
+nginx-service   NodePort    10.96.24.131   <none>        80:30080/TCP   9s
+
+NAME            ENDPOINTS                                                 AGE
+nginx-service   10.244.1.10:80,10.244.1.11:80,10.244.1.6:80 + 9 more...   9s
+
+NAME                  ADDRESSTYPE   PORTS   ENDPOINTS                                       AGE
+kubernetes            IPv4          6443    172.20.0.4                                      8h
+nginx-service-gbk48   IPv4          80      10.244.1.6,10.244.2.10,10.244.2.9 + 9 more...   9s

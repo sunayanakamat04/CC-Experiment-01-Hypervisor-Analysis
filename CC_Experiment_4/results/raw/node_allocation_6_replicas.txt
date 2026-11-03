@@ -1,0 +1,21 @@
+--- Node: kind-worker ---
+Non-terminated Pods:          (5 in total)
+  Namespace   Name                            CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  default     resource-demo-54dfb4bddc-6gxlp  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+  default     resource-demo-54dfb4bddc-pcpbz  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+  default     resource-demo-54dfb4bddc-vd82r  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+Allocated resources:
+  Resource           Requests    Limits
+  cpu                400m (2%)   600m (3%)
+  memory             242Mi (3%)  384Mi (4%)
+
+--- Node: kind-worker2 ---
+Non-terminated Pods:          (5 in total)
+  Namespace   Name                            CPU Requests  CPU Limits  Memory Requests  Memory Limits
+  default     resource-demo-54dfb4bddc-gbh87  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+  default     resource-demo-54dfb4bddc-nfj2g  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+  default     resource-demo-54dfb4bddc-p2vgw  100m (0%)     200m (1%)   64Mi (0%)        128Mi (1%)
+Allocated resources:
+  Resource           Requests    Limits
+  cpu                400m (2%)   600m (3%)
+  memory             242Mi (3%)  384Mi (4%)

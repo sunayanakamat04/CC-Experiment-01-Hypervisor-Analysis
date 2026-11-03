@@ -1,0 +1,8 @@
+experiment_stage,observation_record
+Cluster verification,All 3 nodes (kind-control-plane kind-worker kind-worker2) online and Ready running Kubernetes v1.37.0.
+Initial resource utilization,Baseline host allocation: 16 allocatable vCPUs and ~1 TiB storage. Metrics API requires metrics-server.
+Six replicas,3 Pods scheduled on kind-worker and 3 Pods on kind-worker2 (exact 50/50 balance).
+Twelve replicas,6 Pods scheduled on kind-worker and 6 Pods on kind-worker2 (sustained 50/50 balance).
+Resource allocation,Each container requests 100m CPU / 64Mi memory and is constrained to 200m CPU / 128Mi memory limits.
+Load balancing,nginx-service NodePort 30080 routes across all 12 backend endpoints via kube-proxy returning HTTP 200 OK.
+Final utilization,Per-worker CPU requests increased from 400m (2%) to 700m (4%); Memory requests increased from 242Mi (3%) to 434Mi (5%).

@@ -1,0 +1,13 @@
+pod_name,node,ip,status,restarts,age,cpu_request,memory_request
+resource-demo-54dfb4bddc-6gxlp,kind-worker,10.244.1.7,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-bg6m2,kind-worker,10.244.1.10,Running,0,5s,100m,64Mi
+resource-demo-54dfb4bddc-d5vtd,kind-worker2,10.244.2.9,Running,0,5s,100m,64Mi
+resource-demo-54dfb4bddc-gbh87,kind-worker2,10.244.2.8,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-n56zq,kind-worker,10.244.1.9,Running,0,5s,100m,64Mi
+resource-demo-54dfb4bddc-n6cm8,kind-worker,10.244.1.11,Running,0,5s,100m,64Mi
+resource-demo-54dfb4bddc-nfj2g,kind-worker2,10.244.2.7,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-p2vgw,kind-worker2,10.244.2.6,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-pcpbz,kind-worker,10.244.1.6,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-sq64g,kind-worker2,10.244.2.10,Running,0,5s,100m,64Mi
+resource-demo-54dfb4bddc-vd82r,kind-worker,10.244.1.8,Running,0,76s,100m,64Mi
+resource-demo-54dfb4bddc-vkjj9,kind-worker2,10.244.2.11,Running,0,5s,100m,64Mi

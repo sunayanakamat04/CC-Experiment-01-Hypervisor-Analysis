@@ -1,0 +1,4 @@
+CONTAINER ID   IMAGE                  COMMAND                  CREATED       STATUS       PORTS                       NAMES
+c35c2e4662cb   kindest/node:v1.37.0   "/usr/local/bin/entr…"   8 hours ago   Up 8 hours   127.0.0.1:57207->6443/tcp   kind-control-plane
+cfd18e76ed8d   kindest/node:v1.37.0   "/usr/local/bin/entr…"   8 hours ago   Up 8 hours                               kind-worker
+0ba7380f7a09   kindest/node:v1.37.0   "/usr/local/bin/entr…"   8 hours ago   Up 8 hours                               kind-worker2

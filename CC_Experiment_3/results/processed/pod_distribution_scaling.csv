@@ -1,0 +1,7 @@
+stage,replica_target,node_name,pod_count,percentage
+initial,1,kind-worker,1,100.0
+initial,1,kind-worker2,0,0.0
+scaled_3,3,kind-worker,2,66.7
+scaled_3,3,kind-worker2,1,33.3
+scaled_6,6,kind-worker,3,50.0
+scaled_6,6,kind-worker2,3,50.0

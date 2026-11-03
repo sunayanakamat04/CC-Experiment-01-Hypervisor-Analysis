@@ -1,0 +1,5 @@
+PS C:\Users\sunay\k8s-lab> kubectl top nodes
+error: Metrics API not available
+
+PS C:\Users\sunay\k8s-lab> kubectl get deployment metrics-server -n kube-system
+Error from server (NotFound): deployments.apps "metrics-server" not found

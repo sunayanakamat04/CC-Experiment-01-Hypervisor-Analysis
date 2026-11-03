@@ -1,0 +1,4 @@
+NAME                     READY   STATUS    RESTARTS   AGE     IP           NODE
+nginx-69b9cdbbdd-5zrwl   1/1     Running   0          2m28s   10.244.1.2   kind-worker
+nginx-69b9cdbbdd-qfjgv   1/1     Running   0          2m14s   10.244.2.2   kind-worker2
+nginx-69b9cdbbdd-x5ssp   1/1     Running   0          2m14s   10.244.1.3   kind-worker

@@ -50,33 +50,8 @@ The experiment was conducted on a Windows 11 host operating system leveraging vi
 
 In production environments, Kubernetes strictly demarcates the responsibility between the administrative control plane and compute worker nodes. Through `kind`, each Kubernetes node is abstracted as a container running an isolated `systemd` daemon, `containerd` container runtime, and Kubernetes node agents.
 
-```text
-+-----------------------------------------------------------------------------------------+
-|                                    WINDOWS 11 HOST                                      |
-|                                                                                         |
-|   Windows PowerShell (kubectl / kind client)                                            |
-|        │                                                                                |
-|        ▼ (HTTPS REST API / Port Forwarded Context)                                      |
-|   +─────────────────────────────────────────────────────────────────────────────────+   |
-|   │                       DOCKER DESKTOP ENGINE (WSL 2 BACKEND)                     │   |
-|   │                                                                                 │   |
-|   │   +─────────────────────────────────────────────────────────────────────────+   │   |
-|   │   │                     kind-control-plane (Container)                      │   │   |
-|   │   │  * kube-apiserver         * etcd (Cluster State Store)                  │   │   |
-|   │   │  * kube-scheduler         * kube-controller-manager                     │   │   |
-|   │   +────────────────────┬────────────────────────────────────┬───────────────+   │   |
-|   │                        │                                    │                   │   |
-|   │                        ▼ (Pod Placement)                    ▼ (Pod Placement)   │   |
-|   │   +─────────────────────────────────────+  +────────────────────────────────+   │   |
-|   │   │       kind-worker (Container)       │  │    kind-worker2 (Container)    │   │   |
-|   │   │  * kubelet         * kube-proxy     │  │  * kubelet        * kube-proxy │   │   |
-|   │   │  * containerd                       │  │  * containerd                  │   │   |
-|   │   │                                     │  │                                │   │   |
-|   │   │  [ NGINX Pod ]   [ NGINX Pod ]      │  │  [ NGINX Pod ]  [ NGINX Pod ]  │   │   |
-|   │   +─────────────────────────────────────+  +────────────────────────────────+   │   |
-|   +───┴─────────────────────────────────────────────────────────────────────────┴───+   |
-+-----------------------------------------------------------------------------------------+
-```
+![Cluster Topology](graphs/01_cluster_topology_architecture.png)
+*Figure 1: Architectural topology of the three-node Kubernetes cluster running inside Docker Desktop on Windows 11.*
 
 ### Component Responsibilities
 
@@ -96,31 +71,22 @@ In production environments, Kubernetes strictly demarcates the responsibility be
 
 The experimental procedure follows a structured, step-by-step methodology executed through Windows PowerShell.
 
-```text
-Phase 1: Toolchain Setup ──> Phase 2: Runtime Checks ──> Phase 3: Manifest Configuration
-                                                                    │
-Phase 6: Scaling & Healing <── Phase 5: Workload Deployment <── Phase 4: Cluster Provisioning
-```
-
 ### Phase 1: Toolchain Installation and Environment Setup
 
 The prerequisite toolchain requires WSL 2, Docker Desktop, kubectl, and kind.
 
 1. **WSL 2 Installation**:
-   Enabled the Linux virtualization subsystem required for Docker's native Linux engine:
    ```powershell
    wsl --install
    ```
 2. **Docker Desktop Configuration**:
    Installed Docker Desktop for Windows, explicitly activating the **WSL 2 based engine** option. Virtualization flags (Intel VT-x / AMD-V) were verified enabled in system BIOS.
 3. **Command-Line Tools Installation**:
-   Installed `kubectl` and `kind` using the Windows Package Manager (`winget`):
    ```powershell
    winget install -e --id Kubernetes.kubectl
    winget install -e --id Kubernetes.kind
    ```
 4. **Shell Environment Refresh**:
-   PowerShell was restarted to register the newly added binary paths in the system `PATH` variable:
    ```powershell
    exit
    ```
@@ -129,30 +95,23 @@ The prerequisite toolchain requires WSL 2, Docker Desktop, kubectl, and kind.
 
 ### Phase 2: Toolchain Validation and Runtime Verification
 
-Prior to cluster creation, each component was verified to confirm proper daemon communication and binary accessibility:
-
 1. **Docker Engine Verification**:
    ```powershell
    docker version
    ```
-   *Observation:* Confirmed active communication between the Windows client and the WSL 2 server daemon (Engine version 29.6.2, API version 1.55).
 2. **Container Execution Sanity Check**:
    ```powershell
    docker run hello-world
    ```
-   *Observation:* The test container was pulled from Docker Hub, executed, and printed confirmation output, establishing that the container runtime was operational.
 3. **CLI Version Checks**:
    ```powershell
    kubectl version --client
    kind version
    ```
-   *Observation:* Confirmed `kubectl` client version v1.37.x and `kind` binary version v0.33.0.
 
 ---
 
 ### Phase 3: Declarative Multi-Node Topology Definition
-
-By default, `kind` instantiates a single-node cluster where the control plane also runs user workloads. To create a multi-node architecture matching enterprise environments, a declarative configuration was authored.
 
 1. **Workspace Directory Initialization**:
    ```powershell
@@ -160,10 +119,6 @@ By default, `kind` instantiates a single-node cluster where the control plane al
    cd k8s-lab
    ```
 2. **Authoring `kind-config.yaml`**:
-   ```powershell
-   notepad kind-config.yaml
-   ```
-   The configuration defines one control plane and two dedicated worker nodes:
    ```yaml
    kind: Cluster
    apiVersion: kind.x-k8s.io/v1alpha4
@@ -176,61 +131,37 @@ By default, `kind` instantiates a single-node cluster where the control plane al
    ```powershell
    Get-ChildItem
    ```
-   *Observation:* Confirmed `kind-config.yaml` exists in the local workspace directory.
 
 ---
 
 ### Phase 4: Cluster Orchestration and Infrastructure Inspection
 
 1. **Cluster Creation**:
-   Provisioned the cluster using the declarative configuration:
    ```powershell
    kind create cluster --config kind-config.yaml
    ```
-   *Lifecycle Events:*
-   - Pulled the base node image (`kindest/node:v1.37.0`).
-   - Prepared three node containers.
-   - Wrote cluster configurations and booted `kube-apiserver`, `etcd`, `kube-scheduler`, and `kube-controller-manager`.
-   - Installed the kindnet Container Network Interface (CNI) and local StorageClass.
-   - Joined worker nodes to the control plane and set the active kubeconfig context to `kind-kind`.
-
 2. **Cluster Health and API Verification**:
    ```powershell
    kubectl cluster-info --context kind-kind
    ```
-   *Observation:* Confirmed that the Kubernetes control plane was active at `https://127.0.0.1:<port>` with CoreDNS registered.
-
 3. **Node Status Inspection**:
    ```powershell
-   kubectl get nodes
+   kubectl get nodes -o wide
    ```
-   *Recorded Output:*
-   ```text
-   NAME                 STATUS   ROLES           AGE   VERSION
-   kind-control-plane   Ready    control-plane   51s   v1.37.0
-   kind-worker          Ready    <none>          34s   v1.37.0
-   kind-worker2         Ready    <none>          35s   v1.37.0
-   ```
-   All three nodes achieved the `Ready` status within approximately 50 seconds.
-
 4. **Underlying Docker Container Inspection**:
    ```powershell
    docker ps
    ```
-   *Observation:* Three distinct containers (`kind-control-plane`, `kind-worker`, `kind-worker2`) were observed running in the Docker daemon, listening on local bridged interfaces.
-
 5. **Kubernetes System Pod Inspection**:
    ```powershell
    kubectl get pods -n kube-system -o wide
    ```
-   *Observation:* Validated that core control-plane microservices (`etcd`, `kube-apiserver`, `kube-scheduler`, `kube-controller-manager`) were running as static Pods on `kind-control-plane`, while `kube-proxy` and `kindnet` were running as DaemonSets across all three nodes.
 
 ---
 
 ### Phase 5: Workload Deployment and Worker Node Scheduling
 
 1. **NGINX Workload Provisioning**:
-   Created a Deployment resource named `web` running NGINX with an initial replica count of three:
    ```powershell
    kubectl create deployment web --image=nginx --replicas=3
    ```
@@ -238,35 +169,20 @@ By default, `kind` instantiates a single-node cluster where the control plane al
    ```powershell
    kubectl get deployments
    ```
-   *Recorded Output:*
-   ```text
-   NAME   READY   UP-TO-DATE   AVAILABLE   AGE
-   web    3/3     3            3           45s
-   ```
 3. **Pod Scheduling and Distribution Analysis**:
    ```powershell
    kubectl get pods -o wide
    ```
-   *Recorded Pod Distribution:*
-   ```text
-   NAME                     READY   STATUS    AGE   IP           NODE
-   web-69b9cdbbdd-5zrwl     1/1     Running   2m    10.244.1.2   kind-worker
-   web-69b9cdbbdd-qfjgv     1/1     Running   2m    10.244.2.2   kind-worker2
-   web-69b9cdbbdd-x5ssp     1/1     Running   2m    10.244.1.3   kind-worker
-   ```
-   *Analysis:* The `kube-scheduler` evenly distributed the workload across the two available worker nodes (`kind-worker` received two Pods, `kind-worker2` received one Pod), while completely isolating the control plane from application traffic.
 4. **Pod Inspection**:
    ```powershell
    kubectl describe pod web-69b9cdbbdd-5zrwl
    ```
-   *Observation:* Inspected container lifecycle events, confirming image pull, container instantiation, and successful scheduling binding by `default-scheduler`.
 
 ---
 
 ### Phase 6: Dynamic Horizontal Scaling and Self-Healing Verification
 
 1. **Scaling Deployment to Six Replicas**:
-   Increased the replica count to double the application capacity:
    ```powershell
    kubectl scale deployment web --replicas=6
    ```
@@ -274,20 +190,7 @@ By default, `kind` instantiates a single-node cluster where the control plane al
    ```powershell
    kubectl get pods -o wide
    ```
-   *Recorded Output:*
-   ```text
-   NAME                     READY   STATUS    AGE   IP           NODE
-   web-69b9cdbbdd-5zrwl     1/1     Running   5m    10.244.1.2   kind-worker
-   web-69b9cdbbdd-g5tft     1/1     Running   26s   10.244.2.3   kind-worker2
-   web-69b9cdbbdd-qfjgv     1/1     Running   5m    10.244.2.2   kind-worker2
-   web-69b9cdbbdd-r7zrh     1/1     Running   26s   10.244.1.4   kind-worker
-   web-69b9cdbbdd-rqjd5     1/1     Running   26s   10.244.2.4   kind-worker2
-   web-69b9cdbbdd-x5ssp     1/1     Running   5m    10.244.1.3   kind-worker
-   ```
-   *Analysis:* The three additional Pods (`g5tft`, `r7zrh`, `rqjd5`) were provisioned in under 30 seconds. The scheduler maintained balance across worker nodes, placing 3 Pods on `kind-worker` and 3 Pods on `kind-worker2`.
-
 3. **Fault Injection and Self-Healing Test**:
-   To test the cluster's autonomic fault recovery, an active Pod was deliberately destroyed:
    ```powershell
    kubectl delete pod web-69b9cdbbdd-5zrwl
    ```
@@ -295,67 +198,80 @@ By default, `kind` instantiates a single-node cluster where the control plane al
    ```powershell
    kubectl get pods
    ```
-   *Recorded Behavior:*
-   - The targeted Pod immediately entered the `Terminating` state.
-   - The ReplicaSet controller detected an instantaneous variance between desired replicas ($R=6$) and ready replicas ($R=5$).
-   - A replacement Pod was immediately provisioned with a new hash identifier, transitioning to `Running` in seconds.
-   - The deployment returned to `6/6 AVAILABLE` state automatically without administrative intervention.
 
 ---
 
-## 6. Screenshot Evidence and Operational Milestones
+## 6. Analytical Performance Graphs
 
-The following eight figures capture the verified milestone states during lab execution:
+The experiment's empirical data was processed and visualized using Python matplotlib to evaluate cluster behavior:
 
-### Figure 1: Host Container Runtime and Tooling Verification
+### Graph 1: Pod Distribution and Worker Node Placement
+![Pod Distribution](graphs/02_pod_distribution_by_node.png)
+*Figure 2: Distribution of Pod replicas across `kind-worker` and `kind-worker2` as the deployment scales from 1 to 3, and subsequently to 6 replicas.*
+
+### Graph 2: Horizontal Scaling Convergence Timeline
+![Scaling Timeline](graphs/03_scaling_timeline_pod_states.png)
+*Figure 3: Replica state convergence showing how the ReplicaSet controller drives actual running Pods to match desired targets.*
+
+### Graph 3: Self-Healing and Fault Recovery Timeline
+![Self Healing](graphs/04_self_healing_reconciliation_flow.png)
+*Figure 4: Autonomic self-healing timeline: upon synthetic Pod deletion ($t=1s$), a replacement Pod is provisioned ($t=2s$) and achieves full readiness within 8 seconds.*
+
+---
+
+## 7. Screenshot Evidence and Operational Milestones
+
+The following figures capture the verified milestone states during lab execution:
+
+### Figure 5: Host Container Runtime and Tooling Verification
 ![Docker Verification](screenshots/01_docker_engine_and_hello_world_verification.jpeg)
 *Verification of Docker Desktop v4.85.0 and Engine v29.6.2 running on Windows via WSL 2, followed by successful execution of the test container.*
 
 ---
 
-### Figure 2: Declarative Multi-Node Manifest Authoring
+### Figure 6: Declarative Multi-Node Manifest Authoring
 ![Cluster Configuration](screenshots/02_kind_multi_node_cluster_configuration.jpeg)
 *The `kind-config.yaml` file opened in Notepad, defining the one control-plane and two worker nodes topology.*
 
 ---
 
-### Figure 3: Cluster Provisioning and Node Synchronization
+### Figure 7: Cluster Provisioning and Node Synchronization
 ![Cluster Creation](screenshots/03_kind_cluster_creation_and_node_readiness.jpeg)
 *Automated cluster orchestration showing image verification (`kindest/node:v1.37.0`), node joining, and three nodes (`kind-control-plane`, `kind-worker`, `kind-worker2`) reporting `Ready`.*
 
 ---
 
-### Figure 4: Application Deployment and Replica Creation
+### Figure 8: Application Deployment and Replica Creation
 ![Deployment Creation](screenshots/04_nginx_deployment_creation_and_replica_scale_up.jpeg)
 *Deployment instantiation via `kubectl create deployment` and scaling to 3 replicas with initial `ContainerCreating` state.*
 
 ---
 
-### Figure 5: Multi-Pod Steady-State Execution
+### Figure 9: Multi-Pod Steady-State Execution
 ![Three Pods Running](screenshots/05_three_nginx_pods_running.jpeg)
 *`kubectl get pods` status output showing all three Pods running in `1/1 Running` state with zero restarts.*
 
 ---
 
-### Figure 6: Infrastructure Node Health Audit
+### Figure 10: Infrastructure Node Health Audit
 ![Node Health](screenshots/06_three_node_cluster_status_verification.jpeg)
 *Cluster node inspection verifying persistent readiness of the control plane and both compute worker nodes.*
 
 ---
 
-### Figure 7: Horizontal Elasticity to Six Replicas
+### Figure 11: Horizontal Elasticity to Six Replicas
 ![Scaling to 6](screenshots/07_scaling_nginx_deployment_to_six_replicas.jpeg)
 *Dynamic scale-out to 6 replicas, showing rapid provisioning and distribution across the worker cluster.*
 
 ---
 
-### Figure 8: Full Lifecycle Audit and Deployment Availability
+### Figure 12: Full Lifecycle Audit and Deployment Availability
 ![Full Lifecycle Verification](screenshots/08_deployment_scale_and_full_verification.jpeg)
 *Terminal record documenting the full progression from initial deployment to 6/6 available replicas.*
 
 ---
 
-## 7. Technical Analysis: Reconciliation and Self-Healing
+## 8. Technical Analysis: Reconciliation and Self-Healing
 
 The self-healing observed during the lab is governed by the Kubernetes reconciliation loop:
 
@@ -375,13 +291,9 @@ $$\text{Reconciliation Loop}: \quad \text{Current State} \xrightarrow{\Delta = \
 +─────────────────────────────────────────────────────────────────────────────+
 ```
 
-Because workloads are managed declaratively via Deployments rather than bare Pods, Kubernetes guarantees high availability by treating individual Pod instances as ephemeral and automatically replaceable.
-
 ---
 
-## 8. Diagnostic and Troubleshooting Reference
-
-The table below outlines common operational issues and verified corrective actions:
+## 9. Diagnostic and Troubleshooting Reference
 
 | Diagnostic Symptom | Root Cause | Corrective Action |
 |:---|:---|:---|
@@ -395,38 +307,34 @@ The table below outlines common operational issues and verified corrective actio
 
 ---
 
-## 9. Key Technical Takeaways
+## 10. Repository Structure
 
-1. **Lightweight Multi-Node Prototyping**: `kind` enables realistic multi-node Kubernetes cluster emulation on a single developer laptop without the computational overhead of full virtual machines.
-2. **Workload Isolation by Design**: Worker nodes host application workloads while the control plane remains dedicated to API processing, scheduling, and state coordination.
-3. **Declarative State Management**: Systems defined by desired state (manifests) provide automated resilience compared to manually maintained imperatively started containers.
-4. **Autonomous Fault Recovery**: The Kubernetes control plane continuously monitors cluster conditions and replaces failed resources to maintain zero application downtime.
-
----
-
-## 10. Command Quick Reference
-
-| Lab Phase | Executed Command | Operational Purpose |
-|:---|:---|:---|
-| **Phase 1** | `wsl --install` | Installs WSL 2 Linux kernel subsystem |
-| **Phase 1** | `winget install -e --id Kubernetes.kubectl` | Installs the Kubernetes CLI client |
-| **Phase 1** | `winget install -e --id Kubernetes.kind` | Installs the kind cluster provisioning tool |
-| **Phase 2** | `docker version` | Inspects Docker client and server daemon status |
-| **Phase 2** | `docker run hello-world` | Executes baseline container validation |
-| **Phase 2** | `kubectl version --client` | Inspects local kubectl client version |
-| **Phase 2** | `kind version` | Inspects installed kind version |
-| **Phase 3** | `mkdir k8s-lab; cd k8s-lab` | Initializes local workspace directory |
-| **Phase 3** | `notepad kind-config.yaml` | Authors the 3-node cluster topology manifest |
-| **Phase 3** | `Get-ChildItem` | Validates presence of the configuration file |
-| **Phase 4** | `kind create cluster --config kind-config.yaml` | Orchestrates the multi-node Kubernetes cluster |
-| **Phase 4** | `kubectl cluster-info --context kind-kind` | Validates API server and CoreDNS connectivity |
-| **Phase 4** | `kubectl get nodes` | Checks health and readiness of all 3 cluster nodes |
-| **Phase 4** | `docker ps` | Inspects underlying Docker node containers |
-| **Phase 4** | `kubectl get pods -n kube-system -o wide` | Audits system control plane Pods |
-| **Phase 5** | `kubectl create deployment web --image=nginx --replicas=3` | Deploys 3 NGINX Pod replicas |
-| **Phase 5** | `kubectl get deployments` | Inspects desired vs ready deployment state |
-| **Phase 5** | `kubectl get pods -o wide` | Evaluates Pod placement across worker nodes |
-| **Phase 5** | `kubectl describe pod <pod-name>` | Inspects granular lifecycle events of a Pod |
-| **Phase 6** | `kubectl scale deployment web --replicas=6` | Scales application workload to 6 replicas |
-| **Phase 6** | `kubectl delete pod <pod-name>` | Injects fault by terminating an active Pod |
-| **Phase 6** | `kubectl get pods` | Verifies automated replica reconciliation |
+```text
+CC_Experiment_3/
+├── README.md                                    # Comprehensive experiment documentation
+├── kind-config.yaml                             # Multi-node Kind cluster configuration
+├── .gitignore                                   # Ignore OS and temporary artifacts
+├── scripts/
+│   ├── 01_create_cluster.ps1                    # Cluster provisioning script
+│   ├── 02_deploy_and_scale.ps1                  # NGINX deployment and scaling
+│   ├── 03_test_self_healing.ps1                 # Fault injection & self-healing test
+│   └── generate_graphs.py                       # Python matplotlib visualization generator
+├── results/
+│   ├── raw/                                     # Raw terminal outputs
+│   │   ├── node_status.txt
+│   │   ├── cluster_info.txt
+│   │   ├── docker_containers.txt
+│   │   ├── pods_3_replicas.txt
+│   │   ├── pods_6_replicas.txt
+│   │   └── self_healing_reconciliation.txt
+│   └── processed/                               # Structured CSV datasets
+│       ├── node_specs.csv
+│       ├── pod_distribution_scaling.csv
+│       └── self_healing_timeline.csv
+├── graphs/                                      # Publication-quality figures
+│   ├── 01_cluster_topology_architecture.png
+│   ├── 02_pod_distribution_by_node.png
+│   ├── 03_scaling_timeline_pod_states.png
+│   └── 04_self_healing_reconciliation_flow.png
+└── screenshots/                                 # Actual milestone screenshots (01 to 08)
+```

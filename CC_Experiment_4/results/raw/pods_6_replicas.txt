@@ -1,0 +1,7 @@
+NAME                             READY   STATUS    RESTARTS   AGE   IP           NODE           NOMINATED NODE   READINESS GATES
+resource-demo-54dfb4bddc-6gxlp   1/1     Running   0          42s   10.244.1.7   kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-gbh87   1/1     Running   0          42s   10.244.2.8   kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-nfj2g   1/1     Running   0          42s   10.244.2.7   kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-p2vgw   1/1     Running   0          42s   10.244.2.6   kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-pcpbz   1/1     Running   0          42s   10.244.1.6   kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-vd82r   1/1     Running   0          42s   10.244.1.8   kind-worker    <none>           <none>

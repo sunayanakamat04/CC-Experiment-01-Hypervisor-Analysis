@@ -1,0 +1,5 @@
+node,replicas_stage,demo_pods,cpu_requests_m,cpu_limits_m,memory_requests_mi,memory_limits_mi
+kind-worker,6,3,400,600,242,384
+kind-worker2,6,3,400,600,242,384
+kind-worker,12,6,700,1200,434,768
+kind-worker2,12,6,700,1200,434,768

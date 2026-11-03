@@ -1,0 +1,13 @@
+NAME                             READY   STATUS    RESTARTS   AGE   IP            NODE           NOMINATED NODE   READINESS GATES
+resource-demo-54dfb4bddc-6gxlp   1/1     Running   0          76s   10.244.1.7    kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-bg6m2   1/1     Running   0          5s    10.244.1.10   kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-d5vtd   1/1     Running   0          5s    10.244.2.9    kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-gbh87   1/1     Running   0          76s   10.244.2.8    kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-n56zq   1/1     Running   0          5s    10.244.1.9    kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-n6cm8   1/1     Running   0          5s    10.244.1.11   kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-nfj2g   1/1     Running   0          76s   10.244.2.7    kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-p2vgw   1/1     Running   0          76s   10.244.2.6    kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-pcpbz   1/1     Running   0          76s   10.244.1.6    kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-sq64g   1/1     Running   0          5s    10.244.2.10   kind-worker2   <none>           <none>
+resource-demo-54dfb4bddc-vd82r   1/1     Running   0          76s   10.244.1.8    kind-worker    <none>           <none>
+resource-demo-54dfb4bddc-vkjj9   1/1     Running   0          5s    10.244.2.11   kind-worker2   <none>           <none>
