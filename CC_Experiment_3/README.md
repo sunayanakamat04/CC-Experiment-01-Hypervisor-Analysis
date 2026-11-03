@@ -1,96 +1,213 @@
-# Kubernetes Lab on Windows: Three-Node Cluster, NGINX Deployment, Scaling, and Self-Healing
+# Kubernetes Lab on Windows
 
-## 1. Project Overview
-
-This repository documents the setup, deployment, lifecycle management, and architectural verification of a local multi-node Kubernetes cluster running on Windows 11 using **kind** (Kubernetes in Docker), **Docker Desktop**, and **WSL 2**. 
-
-The lab provisions a production-style three-node Kubernetes topology consisting of one control-plane node and two dedicated worker nodes. Within this cluster, an NGINX web server deployment is initialized, scaled across worker nodes, inspected, and tested for elasticity and controller-driven self-healing.
+Build a three-node Kubernetes cluster on your own laptop, deploy an NGINX web app, then scale it and watch Kubernetes heal itself.
 
 ---
 
-## 2. Objectives
+## Lab Overview
 
-- Provision a local multi-node Kubernetes cluster (1 control-plane and 2 worker nodes) on Windows using `kind` and Docker containers.
-- Understand the role of declarative cluster manifests (`kind-config.yaml`).
-- Validate container runtime health and Kubernetes API connectivity through native Windows PowerShell commands.
-- Deploy an containerized NGINX application workload managed by a Kubernetes Deployment controller.
-- Dynamically scale the workload from 1 to 3 replicas, and subsequently to 6 replicas, observing scheduling distribution across worker nodes.
-- Analyze the internal Kubernetes control loop (reconciliation) responsible for automated self-healing upon Pod termination.
+| Attribute | Specification |
+|:---|:---|
+| **Steps** | 6 parts, 27 steps |
+| **Estimated Time** | About 60 min |
+| **System** | Windows 10 / 11 (64-bit) |
+| **Level** | Beginner |
+| **Key Tools** | WSL 2, Docker Desktop, kubectl, kind v0.33, NGINX |
 
----
-
-## 3. Tools and Technologies Used
-
-| Tool / Technology | Role in Lab | Version / Specifications |
-|:---|:---|:---|
-| **Operating System** | Host development environment | Windows 11 (x86_64) |
-| **WSL 2** | Windows Subsystem for Linux backend | Linux kernel integration for Docker |
-| **Docker Desktop** | Host containerization engine running kind node containers | v4.85.0 (Engine v29.6.2, containerd v2.2.5, runc v1.3.6) |
-| **kind** | Tool for running local Kubernetes clusters using Docker containers | Latest Windows binary (Node Image: `kindest/node:v1.37.0`) |
-| **kubectl** | Kubernetes command-line client communicating with kube-apiserver | Windows CLI |
-| **Kubernetes (k8s)** | Container orchestration platform | v1.37.0 |
-| **NGINX** | Containerized web server application workload | `nginx:latest` |
-| **Windows PowerShell** | Command shell and script execution environment | Windows PowerShell 5.1 / PowerShell 7 |
-
----
-
-## 4. Prerequisites
-
-Before executing this lab, the following components must be configured on Windows:
-
-1. **Hardware Virtualization**: Enabled in the system BIOS/UEFI (Intel VT-x or AMD-V).
-2. **WSL 2 (Windows Subsystem for Linux)**: Installed and updated with default distribution (e.g., Ubuntu).
-3. **Docker Desktop for Windows**:
-   - Configured with WSL 2 backend (`Settings -> General -> Use the WSL 2 based engine`).
-   - Linux containers mode selected (`desktop-linux` context).
-4. **kind Binary**: Downloaded and added to the Windows System `PATH`.
-5. **kubectl CLI**: Installed and accessible from PowerShell.
-
----
-
-## 5. Architecture: The Three-Node Cluster
-
-In production environments, Kubernetes strictly separates the control plane from worker workloads to ensure fault tolerance, security, and workload isolation. Through `kind`, each Kubernetes node is instantiated as an independent, lightweight Docker container running inside the Docker daemon.
+### Cluster Architecture
 
 ```text
-+-----------------------------------------------------------------------------------+
-|                              Windows 11 Host OS                                   |
-|  +-----------------------------------------------------------------------------+  |
-|  |                    Docker Desktop (WSL 2 Backend)                           |
-|  |                                                                             |
-|  |  +-----------------------+  +---------------------+  +---------------------+  |  |
-|  |  |   kind-control-plane  |  |     kind-worker     |  |    kind-worker2     |  |  |
-|  |  |      (Container)      |  |     (Container)     |  |     (Container)     |  |  |
-|  |  |                       |  |                     |  |                     |  |  |
-|  |  |  * kube-apiserver     |  |  * kubelet          |  |  * kubelet          |  |  |
-|  |  |  * etcd               |  |  * kube-proxy       |  |  * kube-proxy       |  |  |
-|  |  |  * kube-scheduler     |  |  * containerd       |  |  * containerd       |  |  |
-|  |  |  * kube-controller-   |  |                     |  |                     |  |  |
-|  |  |    manager            |  |  [ NGINX Pods ]     |  |  [ NGINX Pods ]     |  |  |
-|  |  +-----------^-----------+  +----------^----------+  +----------^----------+  |  |
-|  +--------------|-------------------------|------------------------|-----------+  |
-|                 |                         |                        |              |
-|          kubectl CLI (PowerShell) --------+------------------------+              |
-+-----------------------------------------------------------------------------------+
++---------------------------------------------------------------------------------+
+| Your Windows laptop                                                             |
+|                                                                                 |
+|  PowerShell                                                                     |
+|  kubectl · kind                                                                 |
+|         │                                                                       |
+|         ▼                                                                       |
+|  Docker Desktop (WSL 2)  [Each node is one container]                           |
+|  +---------------------------------------------------------------------------+  |
+|  | kind-control-plane                                                        |  |
+|  | API server · scheduler · etcd · controller manager                        |  |
+|  +---------------------------------------------------------------------------+  |
+|  +-----------------------------------+   +-----------------------------------+  |
+|  | kind-worker                       |   | kind-worker2                      |  |
+|  | [Pod]  [Pod]  [Pod]               |   | [Pod]  [Pod]                      |  |
+|  +-----------------------------------+   +-----------------------------------+  |
++---------------------------------------------------------------------------------+
 ```
 
-### Node Roles and Responsibilities
+### The Lab at a Glance
 
-1. **Control-Plane Node (`kind-control-plane`)**:
-   - **kube-apiserver**: Front-end entry point serving REST queries, validating specifications, and updating cluster state.
-   - **etcd**: Consistent, highly available key-value store holding the complete cluster configuration and state.
-   - **kube-scheduler**: Watches newly created Pods without assigned nodes and assigns them to optimal worker nodes based on resource constraints and affinity.
-   - **kube-controller-manager**: Runs controllers that regulate the state of the cluster (Deployment controller, ReplicaSet controller, Node controller).
-2. **Worker Nodes (`kind-worker`, `kind-worker2`)**:
-   - **kubelet**: Agent running on each node ensuring that containers described in PodSpecs are running and healthy.
-   - **kube-proxy**: Maintains network rules on nodes allowing network communication to Pods from inside or outside the cluster.
-   - **containerd**: Container runtime executing the actual application containers.
+1. **Build**: A cluster with 1 control plane and 2 workers
+2. **Deploy**: Three NGINX Pods and see where they run
+3. **Scale and heal**: Go to six Pods and watch one come back
 
 ---
 
-## 6. Cluster Specification (`kind-config.yaml`)
+## Before You Begin
 
-The multi-node cluster topology is defined declaratively using Kind's `v1alpha4` configuration API:
+**Goal:** Build a local Kubernetes cluster with one control-plane node and two worker nodes, deploy NGINX, and test scaling and self-healing.
+
+### Check Your Laptop
+
+- Windows 10 or 11, 64-bit
+- Internet access (about 2 GB to download)
+- Administrator permission to install software
+- 8 GB RAM at least (16 GB recommended)
+- PowerShell (not Git Bash)
+
+### How to Use This Manual
+
+- Work through the steps in order. Copy one command at a time into PowerShell and press Enter.
+- Read *What it does* before you run it.
+- Compare your screen with *You should see* before moving on.
+- Replace anything in `<angle brackets>` with a real name, without the brackets.
+
+---
+
+## Part 1 of 6: Install the Tools
+
+You need four tools: WSL 2 (the Linux layer), Docker Desktop (runs the nodes), kubectl (talks to the cluster) and kind (creates the cluster).
+
+### Step 1.1: Install WSL 2
+
+Run PowerShell as Administrator:
+
+```powershell
+wsl --install
+```
+
+- **What it does:** Installs Windows Subsystem for Linux (WSL 2), which Docker Desktop runs on.
+- **You should see:** Download and install progress, then a request to restart. Restart Windows when asked.
+
+### Step 1.2: Install Docker Desktop
+
+1. Download Docker Desktop for Windows from `docker.com/products/docker-desktop`.
+2. Run the installer and keep **"Use WSL 2 instead of Hyper-V"** ticked.
+3. Open Docker Desktop from the Start menu and accept the terms.
+
+- **What it does:** Installs Docker, which will run each Kubernetes node as a container. This step uses the installer, not a PowerShell command.
+- **You should see:** Docker Desktop's status shows Engine running.
+- **Important:** If Docker Desktop says WSL 2 or virtualization is missing, finish the WSL setup and restart Windows. If needed, turn on CPU virtualization (Intel VT-x or AMD-V/SVM) in your BIOS/UEFI settings.
+
+### Step 1.3: Install kubectl
+
+Run in PowerShell:
+
+```powershell
+winget install -e --id Kubernetes.kubectl
+```
+
+- **What it does:** Installs kubectl, the command-line tool used to control Kubernetes.
+- **You should see:** Successfully installed at the end. Type `Y` and press Enter if winget asks to accept source agreements.
+
+### Step 1.4: Install kind
+
+Run in PowerShell:
+
+```powershell
+winget install -e --id Kubernetes.kind
+```
+
+- **What it does:** Installs kind (Kubernetes IN Docker), which creates a Kubernetes cluster using Docker containers.
+- **You should see:** Successfully installed at the end.
+
+### Step 1.5: Reopen PowerShell
+
+```powershell
+exit
+```
+
+- **What it does:** Closes this PowerShell window. Open a new one so it can find the tools you just installed.
+
+---
+
+## Part 2 of 6: Check That the Tools Work
+
+Open Docker Desktop and wait until the Engine is running. Then, in a new PowerShell window, run these commands one by one.
+
+### Step 2.1: Check Docker
+
+```powershell
+docker version
+```
+
+- **What it does:** Shows the versions of Docker's client and server.
+- **You should see:** Both a Client section and a Server section. If the Server part shows an error, Docker Desktop is not running yet.
+
+### Step 2.2: Test a Container
+
+```powershell
+docker run hello-world
+```
+
+- **What it does:** Downloads and runs a tiny test container.
+- **You should see:**
+  ```text
+  Hello from Docker!
+  This message shows that your installation appears to be working correctly.
+  ```
+
+### Step 2.3: Check kubectl
+
+```powershell
+kubectl version --client
+```
+
+- **What it does:** Shows the installed kubectl version.
+- **You should see:**
+  ```text
+  Client Version: v1.37.x
+  Kustomize Version: v5.x.x
+  ```
+
+### Step 2.4: Check kind
+
+```powershell
+kind version
+```
+
+- **What it does:** Shows the installed kind version.
+- **You should see:** A version line, such as:
+  ```text
+  kind v0.33.0 go1.26.x windows/amd64
+  ```
+
+---
+
+## Part 3 of 6: Create the Cluster Configuration File
+
+A short file tells kind to build one control-plane node and two worker nodes instead of a single node.
+
+### Step 3.1: Create a Lab Folder
+
+```powershell
+mkdir k8s-lab
+```
+
+- **What it does:** Creates a folder to keep the lab files in. If it already exists, just continue.
+
+### Step 3.2: Enter the Folder
+
+```powershell
+cd k8s-lab
+```
+
+- **What it does:** Moves PowerShell into the lab folder. Run all the following commands from here.
+- **You should see:** The prompt now ends in `\k8s-lab>`.
+
+### Step 3.3: Open the Configuration File
+
+```powershell
+notepad kind-config.yaml
+```
+
+- **What it does:** Opens Notepad with a new file called `kind-config.yaml`.
+- **You should see:** A question asking whether to create a new file. Click Yes.
+
+### Step 3.4: Paste the Configuration and Save
+
+Paste the following content into Notepad exactly as shown:
 
 ```yaml
 kind: Cluster
@@ -101,331 +218,282 @@ nodes:
   - role: worker
 ```
 
-### Breakdown of Declarative Properties
+- **What it does:** Asks kind to create three nodes: one control-plane node and two worker nodes.
+- **Note:** Use spaces, not tabs. Make sure the file is saved as `kind-config.yaml` and not `kind-config.yaml.txt`.
 
-- `kind: Cluster`: Defines the object as a kind cluster specification.
-- `apiVersion: kind.x-k8s.io/v1alpha4`: Schema version supported by kind v0.20+.
-- `nodes`: List of virtual nodes to generate as Docker containers:
-  - Entry 1 (`role: control-plane`): Instructs kind to configure the Kubernetes control plane components and expose the API server.
-  - Entry 2 (`role: worker`): Designates a worker node that registers with the control plane to host scheduled workloads.
-  - Entry 3 (`role: worker`): Designates a second worker node enabling multi-node workload distribution and high availability testing.
+### Step 3.5: Check That the File Exists
+
+```powershell
+Get-ChildItem
+```
+
+- **What it does:** Lists the files in the current folder.
+- **You should see:** `kind-config.yaml` in the Name column.
 
 ---
 
-## 7. Step-by-Step Execution Guide
+## Part 4 of 6: Build the Three-Node Kubernetes Cluster
 
-All commands are executed from Windows PowerShell in the lab working directory.
+One command builds the whole cluster. Then you check that all three nodes are healthy and look at what is running inside.
 
-### Step 1: Verify Host Prerequisites and Docker Engine
-
-Confirm that the Docker engine is running and able to execute containers:
-
-```powershell
-docker version
-docker run hello-world
-```
-
-*Expected Outcome:* Docker prints client and server version details (showing Engine 29.6.2 on Windows/WSL2) and confirms container execution with "Hello from Docker!".
-
-### Step 2: Define Cluster Configuration
-
-Create the cluster manifest file `kind-config.yaml` using Notepad or any code editor:
-
-```powershell
-notepad kind-config.yaml
-```
-
-Insert the YAML configuration specifying one control plane and two worker nodes, then save.
-
-### Step 3: Create the Multi-Node Cluster
-
-Deploy the multi-node Kubernetes cluster using kind:
+### Step 4.1: Create the Cluster
 
 ```powershell
 kind create cluster --config kind-config.yaml
 ```
 
-*Process Executed by kind:*
-1. Ensures the base node container image (`kindest/node:v1.37.0`) is present.
-2. Prepares three Docker containers.
-3. Writes Kubernetes system configurations.
-4. Initializes control plane services (etcd, apiserver, scheduler, controller-manager).
-5. Installs the Container Network Interface (CNI) and local StorageClass.
-6. Joins the two worker node containers (`kind-worker` and `kind-worker2`) to the cluster.
-7. Generates a kubeconfig file and switches context to `kind-kind`.
+- **What it does:** Creates the cluster. The first run can take a few minutes while the Kubernetes node image downloads.
+- **You should see:**
+  ```text
+  Creating cluster "kind" ...
+  • Ensuring node image (kindest/node:v1.37.0)
+  ✓ Ensuring node image (kindest/node:v1.37.0)
+  • Preparing nodes
+  ✓ Preparing nodes
+  • Writing configuration
+  ✓ Writing configuration
+  • Starting control-plane
+  ✓ Starting control-plane
+  • Installing CNI
+  ✓ Installing CNI
+  • Installing StorageClass
+  ✓ Installing StorageClass
+  • Joining worker nodes
+  ✓ Joining worker nodes
+  Set kubectl context to "kind-kind"
+  ```
 
-### Step 4: Verify Cluster Connectivity and Nodes
-
-Verify that `kubectl` can communicate with the API server and that all three nodes are online and reporting `Ready`:
+### Step 4.2: Check the Cluster Connection
 
 ```powershell
 kubectl cluster-info --context kind-kind
+```
+
+- **What it does:** Checks that kubectl can talk to the new cluster.
+- **You should see:**
+  ```text
+  Kubernetes control plane is running at https://127.0.0.1:<port>
+  CoreDNS is running at https://127.0.0.1:<port>/api/v1/...
+  ```
+
+### Step 4.3: Check Node Status
+
+```powershell
 kubectl get nodes
 ```
 
-*Expected Output:*
-```text
-NAME                 STATUS   ROLES           AGE   VERSION
-kind-control-plane   Ready    control-plane   51s   v1.37.0
-kind-worker          Ready    <none>          34s   v1.37.0
-kind-worker2         Ready    <none>          35s   v1.37.0
-```
+- **What it does:** Lists the control-plane node and the two worker nodes.
+- **You should see:** Three nodes with STATUS `Ready`:
+  ```text
+  NAME                 STATUS   ROLES           AGE   VERSION
+  kind-control-plane   Ready    control-plane   51s   v1.37.0
+  kind-worker          Ready    <none>          34s   v1.37.0
+  kind-worker2         Ready    <none>          35s   v1.37.0
+  ```
 
-### Step 5: Inspect Underlying Docker Node Containers
-
-Inspect the running Docker containers backing the virtual nodes:
-
-```powershell
-docker ps --filter "name=kind-"
-```
-
-*Expected Output:* Three active Docker containers (`kind-control-plane`, `kind-worker`, `kind-worker2`) running the `kindest/node:v1.37.0` image.
-
-### Step 6: Inspect Kubernetes System Pods
-
-Check that essential internal cluster services are running inside the `kube-system` namespace:
+### Step 4.4: Check the Docker Containers
 
 ```powershell
-kubectl get pods -n kube-system
+docker ps
 ```
 
-*Expected Output:* Active Pods for `coredns`, `etcd-kind-control-plane`, `kube-apiserver-kind-control-plane`, `kube-controller-manager-kind-control-plane`, `kube-proxy`, and `kindnet` (CNI).
+- **What it does:** Shows the running Docker containers. Each one is a kind node.
+- **You should see:** Three containers named `kind-control-plane`, `kind-worker`, and `kind-worker2` in the NAMES column.
 
-### Step 7: Deploy the NGINX Application
-
-Create a Kubernetes Deployment managing an NGINX container:
+### Step 4.5: Check the Kubernetes System Pods
 
 ```powershell
-kubectl create deployment nginx --image=nginx
+kubectl get pods -n kube-system -o wide
+```
+
+- **What it does:** Lists Kubernetes' own components, such as the API server and the scheduler.
+- **You should see:** Pods such as `etcd`, `kube-apiserver`, `kube-scheduler`, and `kube-controller-manager` on `kind-control-plane`, and a `kube-proxy` Pod on every node.
+- **What just happened?** The control-plane node is the cluster's brain: it stores the state and decides where work goes. The two workers are the muscles where your apps will run. All three are Docker containers on your laptop.
+
+---
+
+## Part 5 of 6: Deploy an NGINX Web Application
+
+Now ask Kubernetes to run a real app: three copies of the NGINX web server, spread over the workers.
+
+### Step 5.1: Create Three NGINX Replicas
+
+```powershell
+kubectl create deployment web --image=nginx --replicas=3
+```
+
+- **What it does:** Creates a Deployment named `web` and asks Kubernetes to run three copies (Pods) of the NGINX web server.
+- **You should see:**
+  ```text
+  deployment.apps/web created
+  ```
+
+### Step 5.2: Check the Deployment
+
+```powershell
 kubectl get deployments
 ```
 
-Initially, the deployment creates a single replica. Check the deployment status:
-```text
-NAME    READY   UP-TO-DATE   AVAILABLE   AGE
-nginx   0/1     1            0           6s
-```
+- **What it does:** Shows how many replicas you asked for and how many are ready.
+- **You should see:** Wait until READY shows `3/3`:
+  ```text
+  NAME   READY   UP-TO-DATE   AVAILABLE   AGE
+  web    3/3     3            3           45s
+  ```
 
-### Step 8: Scale to Three Replicas and Verify Pod Distribution
-
-Scale the deployment up to 3 replicas so that multiple Pods can be balanced across the available worker nodes:
-
-```powershell
-kubectl scale deployment nginx --replicas=3
-kubectl get pods
-```
-
-Monitor until all three Pods transition from `ContainerCreating` to `Running`:
-
-```text
-NAME                     READY   STATUS    RESTARTS   AGE
-nginx-69b9cdbbdd-5zrwl   1/1     Running   0          2m28s
-nginx-69b9cdbbdd-qfjgv   1/1     Running   0          2m14s
-nginx-69b9cdbbdd-x5ssp   1/1     Running   0          2m14s
-```
-
-To see which specific worker node hosts each Pod, execute:
+### Step 5.3: See Where the Pods Are Running
 
 ```powershell
 kubectl get pods -o wide
 ```
 
-The Kubernetes scheduler distributes the Pods across `kind-worker` and `kind-worker2`.
+- **What it does:** Lists the three Pods and the node each one was placed on.
+- **You should see:** Under the NODE column, the Pods are spread over `kind-worker` and `kind-worker2`.
 
-### Step 9: Inspect a Pod with Detailed Diagnostics
-
-Inspect the internal metadata, IP addresses, events, and lifecycle hooks of a running Pod:
-
-```powershell
-kubectl describe pod nginx-69b9cdbbdd-5zrwl
-```
-
-### Step 10: Scale the Deployment to Six Replicas
-
-Scale the workload to 6 replicas to observe cluster elasticity:
+### Step 5.4: Inspect a Pod (Optional)
 
 ```powershell
-kubectl scale deployment nginx --replicas=6
-kubectl get pods
-kubectl get deployments
+kubectl describe pod <pod-name>
 ```
 
-*Observed Result:* The ReplicaSet immediately schedules 3 additional Pods (`g5tft`, `r7zrh`, `rqjd5`). Within seconds, all 6 replicas reach `1/1 Running`, and the deployment status reports `6/6 AVAILABLE`:
-
-```text
-NAME                     READY   STATUS    RESTARTS   AGE
-nginx-69b9cdbbdd-5zrwl   1/1     Running   0          5m32s
-nginx-69b9cdbbdd-g5tft   1/1     Running   0          26s
-nginx-69b9cdbbdd-qfjgv   1/1     Running   0          5m18s
-nginx-69b9cdbbdd-r7zrh   1/1     Running   0          26s
-nginx-69b9cdbbdd-rqjd5   1/1     Running   0          26s
-nginx-69b9cdbbdd-x5ssp   1/1     Running   0          5m18s
-```
-
-### Step 11: Verify Self-Healing Behavior
-
-Kubernetes Deployments are governed by declarative state. To test self-healing, terminate one running Pod:
-
-```powershell
-kubectl delete pod nginx-69b9cdbbdd-5zrwl
-kubectl get pods
-```
-
-*Observed Behavior:* The deleted Pod transitions to `Terminating`. Concurrently, the ReplicaSet controller detects that the current replica count (5) is lower than the desired replica count (6), and instantly provisions a replacement Pod with a new random hash suffix.
+- **What it does:** Shows the details and history of one Pod. Replace `<pod-name>` with a real name copied from Step 5.3.
+- **You should see:** Under Events at the bottom, a line confirming the Scheduler assigned the Pod to a worker node.
 
 ---
 
-## 8. Theoretical Analysis: Kubernetes Self-Healing & Scheduling
+## Part 6 of 6: Scale the Pods and Test Self-Healing
 
-### The Reconciliation Control Loop
+Change how many copies you want, then delete one on purpose and watch Kubernetes put it back without being asked.
 
-Kubernetes operates on a continuous declarative reconciliation model:
+### Step 6.1: Scale from Three Pods to Six
 
-$$\text{Desired State} = \text{Current State}$$
-
-```text
-+-------------------------------------------------------------------+
-|                     Kubernetes Control Loop                       |
-|                                                                   |
-|   +----------------+      Compare      +--------------------+     |
-|   | Desired State  | <---------------> |   Current State    |     |
-|   | (Replicas = 6) |                   |   (Replicas = 5)   |     |
-|   +----------------+                   +--------------------+     |
-|           |                                       ^               |
-|           | Difference detected (Delta = -1)     |               |
-|           v                                       |               |
-|   +-----------------------------------------------+-----------+   |
-|   | Controller Manager creates replacement Pod                |   |
-|   | Scheduler binds Pod to least-utilized worker node         |   |
-|   | Kubelet starts container via containerd                   |   |
-|   +-----------------------------------------------------------+   |
-+-------------------------------------------------------------------+
+```powershell
+kubectl scale deployment web --replicas=6
 ```
 
-1. **Observe**: The ReplicaSet controller continuously watches the Kubernetes API server for Pod events in its namespace.
-2. **Analyze**: When a Pod is manually deleted, crashes, or fails liveness probes, the actual count falls below the specified replica target.
-3. **Act**: The controller immediately issues an API call to instantiate a new Pod matching the deployment template.
-4. **Schedule**: The `kube-scheduler` assigns the unassigned Pod to the worker node with sufficient compute capacity.
-5. **Execute**: The `kubelet` on that target worker node pulls the image and initiates the container.
+- **What it does:** Changes the desired number of NGINX Pods from three to six.
+- **You should see:**
+  ```text
+  deployment.apps/web scaled
+  ```
+
+### Step 6.2: Check the Six Pods
+
+```powershell
+kubectl get pods -o wide
+```
+
+- **What it does:** Shows all the Pods and the node each one was placed on.
+- **You should see:** Six web Pods with STATUS `Running`, shared between the two workers.
+
+### Step 6.3: Delete One Pod for the Test
+
+```powershell
+kubectl delete pod <pod-name>
+```
+
+- **What it does:** Deletes one Pod on purpose. Replace `<pod-name>` with a real web Pod name from Step 6.2.
+- **You should see:** A line confirming that the Pod was deleted.
+
+### Step 6.4: Confirm Self-Healing
+
+```powershell
+kubectl get pods
+```
+
+- **What it does:** Checks that Kubernetes created a replacement Pod to bring the Deployment back to six replicas.
+- **You should see:** Six Pods again. The replacement has a new name and an AGE of only a few seconds.
 
 ---
 
-## 9. Screenshot Evidence and Observations
+## Lab Screenshots
 
-The following screenshots document the actual lab execution milestones captured on the host machine.
+The following actual screenshots document the completed lab steps:
 
-### Figure 1: Docker Desktop and Engine Verification
+### 1. Docker Verification (Steps 2.1 & 2.2)
 ![Docker Verification](screenshots/01_docker_engine_and_hello_world_verification.jpeg)
-*Verification of Docker Desktop 4.85.0 and Docker Engine 29.6.2 running on Windows with the WSL 2 backend, successfully executing the `hello-world` test container.*
+*Docker version check and running the hello-world container.*
 
----
-
-### Figure 2: Multi-Node Kind Cluster Configuration Manifest
+### 2. Cluster Configuration File (Steps 3.3 & 3.4)
 ![Cluster Configuration](screenshots/02_kind_multi_node_cluster_configuration.jpeg)
-*The `kind-config.yaml` file opened in Windows Notepad declaring a 3-node topology: one control-plane and two worker nodes.*
+*kind-config.yaml specifying 1 control-plane and 2 worker nodes.*
 
----
-
-### Figure 3: Kind Cluster Creation and Three Ready Nodes
+### 3. Cluster Creation & Node Status (Steps 4.1 – 4.3)
 ![Cluster Creation](screenshots/03_kind_cluster_creation_and_node_readiness.jpeg)
-*Automated cluster provisioning via `kind create cluster --config kind-config.yaml`. The output confirms node image validation (`v1.37.0`), CNI installation, and three nodes (`kind-control-plane`, `kind-worker`, `kind-worker2`) reporting `Ready` status.*
+*kind cluster creation, cluster-info check, and three Ready nodes.*
 
----
+### 4. Deploying NGINX & Scaling (Steps 5.1 & 5.2)
+![Deploy NGINX](screenshots/04_nginx_deployment_creation_and_replica_scale_up.jpeg)
+*Creating NGINX deployment and scaling to 3 replicas.*
 
-### Figure 4: NGINX Deployment Creation and Scaling to Three Replicas
-![Deployment Creation](screenshots/04_nginx_deployment_creation_and_replica_scale_up.jpeg)
-*Creation of the NGINX deployment (`kubectl create deployment nginx --image=nginx`), followed by scaling to 3 replicas (`kubectl scale deployment nginx --replicas=3`) and the initial `ContainerCreating` status.*
-
----
-
-### Figure 5: Three NGINX Pods Successfully Running
+### 5. Three Pods in Running State (Step 5.3)
 ![Three Pods Running](screenshots/05_three_nginx_pods_running.jpeg)
-*Inspection of Pod status via `kubectl get pods` showing all three replicas (`5zrwl`, `qfjgv`, `x5ssp`) transitioned to `1/1 Running` with zero restarts.*
+*Three NGINX Pods in 1/1 Running state.*
 
----
+### 6. Node Health Verification (Step 4.3)
+![Node Health](screenshots/06_three_node_cluster_status_verification.jpeg)
+*Verifying control-plane and both worker nodes are Ready.*
 
-### Figure 6: Cluster Nodes Health and Role Verification
-![Cluster Node Health](screenshots/06_three_node_cluster_status_verification.jpeg)
-*Status check with `kubectl get nodes` confirming steady-state health for `kind-control-plane`, `kind-worker`, and `kind-worker2` running Kubernetes v1.37.0.*
+### 7. Scaling to Six Pods (Steps 6.1 & 6.2)
+![Scaling to 6](screenshots/07_scaling_nginx_deployment_to_six_replicas.jpeg)
+*Scaling deployment to 6 replicas with all Pods Running.*
 
----
-
-### Figure 7: Scaling NGINX Deployment to Six Replicas
-![Scale to Six Replicas](screenshots/07_scaling_nginx_deployment_to_six_replicas.jpeg)
-*Execution of `kubectl scale deployment nginx --replicas=6` and monitoring of the 6 running Pods (`5zrwl`, `g5tft`, `qfjgv`, `r7zrh`, `rqjd5`, `x5ssp`).*
-
----
-
-### Figure 8: Full Terminal Lifecycle and Deployment Status
+### 8. Full Session & Deployment Verification (Step 6.2)
 ![Full Lifecycle Verification](screenshots/08_deployment_scale_and_full_verification.jpeg)
-*Complete terminal record showing scaling command execution, transition from 3 to 6 replicas, and `kubectl get deployments` verifying `6/6` available replicas.*
+*Full session verifying 6/6 available replicas.*
 
 ---
 
-## 10. PowerShell Automation Scripts
+## What You Have Learned
 
-To ensure full reproducibility, custom PowerShell automation scripts are provided in the `scripts/` directory:
+- **Installed the tools:** WSL 2, Docker Desktop, kubectl and kind on Windows.
+- **Built a cluster:** One control-plane node and two workers, all running as Docker containers.
+- **Looked inside:** Saw the API server, scheduler, etcd and kube-proxy running as Pods.
+- **Deployed an app:** Ran three NGINX Pods and saw which node each one was placed on.
+- **Scaled and healed:** Went from 3 to 6 Pods and watched a deleted Pod come back by itself.
 
-| Script Name | Purpose | Usage Command |
+---
+
+## If Something Goes Wrong
+
+| What you see | What to do |
+|:---|:---|
+| Cannot connect to the Docker daemon or error during connect | Docker Desktop isn't running. Open it and wait for Engine running. |
+| kubectl or kind is not recognized | Close every PowerShell window and open a new one (Step 1.5). |
+| WSL 2 or virtualization missing | Run `wsl --install` as Administrator and restart. Turn on virtualization in BIOS/UEFI. |
+| A node stays NotReady | Wait 1–2 minutes. Still stuck? Close other apps, run `kind delete cluster`, then repeat Step 4.1. |
+| A Pod shows ImagePullBackOff | No internet or a typo in the image name. `kubectl describe pod <pod-name>` shows the exact error. |
+| error parsing kind-config.yaml | The file has tabs or wrong spacing. Re-copy it exactly as shown in Step 3.4. |
+| Commands hang or behave oddly in Git Bash | Use PowerShell instead. |
+
+---
+
+## Command Quick Reference
+
+Every command from Steps 1–6, in the order you used them:
+
+| Part | Command | What it does |
 |:---|:---|:---|
-| `scripts/create-cluster.ps1` | Verifies prerequisites (Docker, kind, kubectl) and provisions the 3-node cluster | `.\scripts\create-cluster.ps1` |
-| `scripts/verify-cluster.ps1` | Validates cluster health, node readiness, kube-system Pods, and Docker containers | `.\scripts\verify-cluster.ps1` |
-| `scripts/deploy-nginx.ps1` | Creates NGINX deployment and scales to 3 replicas | `.\scripts\deploy-nginx.ps1` |
-| `scripts/scale-nginx.ps1` | Dynamically scales the deployment to a target replica count (default 6) | `.\scripts\scale-nginx.ps1 -Replicas 6` |
-
----
-
-## 11. Learning Outcomes
-
-1. **Declarative Infrastructure Management**: Mastered defining multi-node topologies in YAML rather than using manual, imperatively provisioned single-node environments.
-2. **Kubernetes Control Plane Architecture**: Understood the separation of concerns between API handling, state management (etcd), scheduling, and node-level execution.
-3. **Horizontal Pod Autoscaling & ReplicaSets**: Observed how Deployments manage underlying ReplicaSets to achieve elasticity without downtime.
-4. **Resilience & Self-Healing**: Verified that the Kubernetes control loop automatically recovers from Pod failures to match the desired state.
-5. **Windows-Native Cloud Development**: Gained practical experience configuring and troubleshooting Kubernetes and Docker within Windows 11 and WSL 2.
-
----
-
-## 12. Troubleshooting Guide
-
-| Issue Encountered | Root Cause | Resolution |
-|:---|:---|:---|
-| `failed to connect to the docker API` | Docker Desktop is stopped or starting up | Launch Docker Desktop, ensure WSL 2 integration is active, and wait until Docker Engine reports running. |
-| `kind: command not found` | The kind executable is not in the system `PATH` | Place `kind.exe` in `C:\Windows\System32` or add its directory to user/system Environment Variables. |
-| `kubectl: unable to connect to the server: connectex` | The cluster context is pointing to an offline or deleted cluster | Run `kubectl config get-contexts` and switch context using `kubectl config use-context kind-kind`. |
-| Pods stuck in `ContainerCreating` | Container image download latency or Docker daemon memory saturation | Allow sufficient time for `nginx` image pull across worker nodes or adjust Docker Desktop resource limits. |
-| Port conflicts when binding host ports | Another service is using ports 80/443 on Windows | Modify container port mappings in `kind-config.yaml` to use alternate ports (e.g., 8080/8443). |
-
----
-
-## 13. Repository Structure
-
-```text
-CC_Experiment_3/
-├── README.md                                    # Comprehensive experiment documentation
-├── kind-config.yaml                             # Multi-node Kind cluster configuration
-├── .gitignore                                   # Ignore OS and temporary artifacts
-├── scripts/
-│   ├── create-cluster.ps1                       # Cluster provisioning script
-│   ├── verify-cluster.ps1                       # Cluster architecture & node health inspection
-│   ├── deploy-nginx.ps1                         # NGINX deployment and scaling (3 replicas)
-│   └── scale-nginx.ps1                          # Workload scaling (6 replicas)
-└── screenshots/
-    ├── 01_docker_engine_and_hello_world_verification.jpeg
-    ├── 02_kind_multi_node_cluster_configuration.jpeg
-    ├── 03_kind_cluster_creation_and_node_readiness.jpeg
-    ├── 04_nginx_deployment_creation_and_replica_scale_up.jpeg
-    ├── 05_three_nginx_pods_running.jpeg
-    ├── 06_three_node_cluster_status_verification.jpeg
-    ├── 07_scaling_nginx_deployment_to_six_replicas.jpeg
-    └── 08_deployment_scale_and_full_verification.jpeg
-```
-
----
-
-## 14. References and Acknowledgments
-
-1. Kubernetes Documentation, *Concepts: Architecture, Deployments, ReplicaSets, and Pod Lifecycle*. https://kubernetes.io/docs/
-2. kind (Kubernetes in Docker) Documentation, *Quick Start and Multi-Node Configurations*. https://kind.sigs.k8s.io/
-3. Docker Inc., *Docker Desktop WSL 2 Backend Documentation*. https://docs.docker.com/desktop/wsl/
-4. NGINX Documentation, *Official Docker Image Deployment Guidelines*. https://hub.docker.com/_/nginx
-5. Cloud Computing Laboratory, *Practical Manual: Kubernetes Multi-Node Deployment, Scaling, and Self-Healing on Windows*.
+| 1 | `wsl --install` | Install WSL 2 (as Administrator) |
+| 1 | `winget install -e --id Kubernetes.kubectl` | Install kubectl |
+| 1 | `winget install -e --id Kubernetes.kind` | Install kind |
+| 2 | `docker version` | Check Docker client and server |
+| 2 | `docker run hello-world` | Test that containers run |
+| 2 | `kubectl version --client` | Check kubectl |
+| 2 | `kind version` | Check kind |
+| 3 | `mkdir k8s-lab` | Make the lab folder |
+| 3 | `cd k8s-lab` | Go into the lab folder |
+| 3 | `notepad kind-config.yaml` | Create the config file |
+| 3 | `Get-ChildItem` | List files in the folder |
+| 4 | `kind create cluster --config kind-config.yaml` | Build the 3-node cluster |
+| 4 | `kubectl cluster-info --context kind-kind` | Check the connection |
+| 4 | `kubectl get nodes` | List nodes and their status |
+| 4 | `docker ps` | See the node containers |
+| 4 | `kubectl get pods -n kube-system -o wide` | See the system Pods |
+| 5 | `kubectl create deployment web --image=nginx --replicas=3` | Run 3 NGINX Pods |
+| 5 | `kubectl get deployments` | Check desired vs ready replicas |
+| 5 | `kubectl get pods -o wide` | See Pods and their nodes |
+| 5 | `kubectl describe pod <pod-name>` | Details and events of one Pod |
+| 6 | `kubectl scale deployment web --replicas=6` | Scale to 6 Pods |
+| 6 | `kubectl delete pod <pod-name>` | Delete one Pod |
+| 6 | `kubectl get pods` | Check the replacement Pod |
