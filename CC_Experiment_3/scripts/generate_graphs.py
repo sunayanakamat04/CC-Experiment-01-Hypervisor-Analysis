@@ -54,7 +54,7 @@ rects1 = ax.bar(x - width/2, worker1_pods, width, label='kind-worker', color='#1
 rects2 = ax.bar(x + width/2, worker2_pods, width, label='kind-worker2', color='#388e3c')
 
 ax.set_ylabel('Number of Scheduled Pods', fontweight='bold')
-ax.set_title('Pod Placement and Load Balancing Across Worker Nodes', fontweight='bold', fontsize=13)
+ax.set_title('Pod Placement and Worker Node Distribution (1 -> 3 -> 6 Replicas)', fontweight='bold', fontsize=13)
 ax.set_xticks(x)
 ax.set_xticklabels(stages)
 ax.legend(loc='upper left', frameon=True)
