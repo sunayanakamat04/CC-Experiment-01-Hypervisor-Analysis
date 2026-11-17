@@ -1,9 +1,0 @@
-# Baseline: php-apache running, no load (2026-11-16)
-
-PS> kubectl top nodes
-NAME       CPU(cores)   CPU(%)   MEMORY(bytes)   MEMORY(%)
-minikube   769m         6%       870Mi           11%
-
-PS> kubectl top pods
-NAME                         CPU(cores)   MEMORY(bytes)
-php-apache-6978874d4-82t99   5m           8Mi

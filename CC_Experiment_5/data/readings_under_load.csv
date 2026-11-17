@@ -1,6 +1,0 @@
-reading,label,pod_cpu_m,pod_mem_mi,loadgen_cpu_m,loadgen_mem_mi,node_cpu_m,node_cpu_pct,node_mem_mi,node_mem_pct
-0,Idle,5,8,,,769,6,870,11
-1,Reading 1,398,12,16,1,719,5,904,11
-2,Reading 2,501,13,16,2,727,6,915,11
-3,Reading 3,501,13,16,1,746,6,885,11
-4,Reading 4,501,13,14,1,784,6,900,11

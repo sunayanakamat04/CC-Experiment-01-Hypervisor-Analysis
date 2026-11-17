@@ -1,5 +1,0 @@
-stage,source,pod_cpu_m,pod_mem_mi,node_cpu_m,node_cpu_pct,node_mem_mi,node_mem_pct
-idle,kubectl_top,5,8,769,6,870,11
-idle,dashboard,1.00,8.94,,,,
-load,kubectl_top,501,13,784,6,900,11
-load,dashboard,501.00,13.31,,,,
